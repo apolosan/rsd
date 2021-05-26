@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity >=0.6.0;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "@openzeppelin/contracts/utils/math/SafeMath.sol";
+// import "./RefStake.sol";
 
 contract ReferenceSystemDeFi is IERC20, Ownable {
 
@@ -78,7 +79,7 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
         _MIN_TX_INTERVAL = 12;
         _CROWDSALE_DURATION = 7889229; // 3 MONTHS
         _percentageFactor = 100;
-        _SALE_RATE = 250;
+        _SALE_RATE = 2000;
         _shouldRewardOwner = true;
         _stakeHelper = stakeHelperAddress;
         _growMarketMint = true;
@@ -86,7 +87,7 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
     }
 
     receive() external payable {
-      require(msg.data.length == 0);
+      // require(msg.data.length == 0);
       crowdsale(msg.sender);
     }
 
@@ -122,10 +123,10 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
         return _balances[account];
     }
 
-    function transfer(address recipient, uint256 amount) public virtual override returns (bool) {
+    function transfer(address recipient, uint256 amount) public virtual override returns (bool success) {
         _txType[msg.sender] = TransactionType.TRANSFER;
-        _transfer(msg.sender, recipient, amount);
-        return true;
+        success = _transfer(msg.sender, recipient, amount);
+        return success;
     }
 
     function allowance(address owner, address spender) public view virtual override returns (uint256) {
@@ -137,11 +138,11 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
         return true;
     }
 
-    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool) {
+    function transferFrom(address sender, address recipient, uint256 amount) public virtual override returns (bool success) {
         _txType[msg.sender] = TransactionType.TRANSFER;
-        _transfer(sender, recipient, amount);
+        success = _transfer(sender, recipient, amount);
         _approve(sender, msg.sender, _allowances[sender][msg.sender].sub(amount, "ERC20: transfer amount exceeds allowance"));
-        return true;
+        return success;
     }
 
     function increaseAllowance(address spender, uint256 addedValue) public virtual returns (bool) {
@@ -154,7 +155,7 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
         return true;
     }
 
-    function _transfer(address sender, address recipient, uint256 amount) internal virtual {
+    function _transfer(address sender, address recipient, uint256 amount) internal virtual returns (bool success) {
         require(sender != address(0), "ERC20: transfer from the zero address");
         require(recipient != address(0) || _txType[msg.sender] == TransactionType.REWARD_MINER || _txType[msg.sender] == TransactionType.REWARD_OWNER, "ERC20: transfer to the zero address");
 
@@ -166,6 +167,7 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
         _balances[recipient] = _balances[recipient].add(amountToTransfer);
         emit Transfer(sender, recipient, amountToTransfer);
         delete amountToTransfer;
+        return true;
     }
 
     function _mint(address account, uint256 amount) internal virtual {
@@ -190,6 +192,11 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
 
         _beforeTokenTransfer();
 
+        if (_growMarketMint) {
+          _targetTotalSupply = _targetTotalSupply.sub(amount);
+          _marketCapTotalSupply = _marketCapTotalSupply.sub(amount);
+          _growMarketMint = false;
+        }        
         _balances[account] = _balances[account].sub(amount, "ERC20: burn amount exceeds balance");
         _totalSupply = _totalSupply.sub(amount);
         emit Transfer(account, address(0), amount);
@@ -280,6 +287,7 @@ contract ReferenceSystemDeFi is IERC20, Ownable {
     }
 
     function burn(uint256 amount) public {
+      _growMarketMint = true;
       _burn(msg.sender, amount);
     }
 
